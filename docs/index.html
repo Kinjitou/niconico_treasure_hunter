@@ -66,6 +66,33 @@ ol.list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;ga
 .more{display:flex;justify-content:center;margin-top:16px}
 .empty,.error{padding:24px;text-align:center;color:var(--muted);background:var(--panel);border-radius:12px;border:1px dashed var(--line)}
 .error{color:var(--warn)}
+details.why{margin-top:8px;font-size:.78rem}
+details.why summary{cursor:pointer;color:var(--accent);list-style:none;display:inline-block}
+details.why summary::-webkit-details-marker{display:none}
+details.why summary::before{content:"▸ "}
+details.why[open] summary::before{content:"▾ "}
+.whybox{margin-top:6px;padding:8px 10px;border-radius:8px;background:var(--bg);border:1px solid var(--line);line-height:1.7}
+.whybox dl{display:grid;grid-template-columns:auto 1fr;gap:2px 10px;margin:0}
+.whybox dt{color:var(--muted)}
+.whybox dd{margin:0;font-variant-numeric:tabular-nums}
+.whybox .note{color:var(--muted);font-size:.72rem;margin:6px 0 0}
+.terms{margin-top:8px;border-top:1px dashed var(--line);padding-top:6px}
+.terms h4{margin:0 0 4px;font-size:.76rem;font-weight:600}
+.term{display:grid;grid-template-columns:minmax(0,9em) 1fr 3.2em;gap:8px;align-items:center}
+.term span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bar{height:6px;border-radius:3px;background:var(--line);overflow:hidden}
+.bar i{display:block;height:100%;background:var(--accent)}
+.proc ol{margin:0;padding:0 16px 16px 34px;font-size:.84rem}
+.proc li{margin:4px 0}
+.proc .num{font-variant-numeric:tabular-nums;font-weight:600}
+.proc .note,.howto p,.howto li{font-size:.84rem}
+.proc .note{color:var(--muted);padding:0 16px 14px;margin:0}
+.howto .inner{padding:0 16px 14px}
+.howto h3{font-size:.9rem;margin:12px 0 4px}
+.howto ul{margin:4px 0;padding-left:20px}
+.howto table{border-collapse:collapse;font-size:.82rem;width:100%;margin:6px 0}
+.howto th,.howto td{border:1px solid var(--line);padding:5px 8px;text-align:left;vertical-align:top}
+.howto th{background:var(--chip);font-weight:600;white-space:nowrap}
 footer{margin-top:36px;font-size:.75rem;color:var(--muted);border-top:1px solid var(--line);padding-top:14px}
 footer p{margin:4px 0}
 @media (max-width:560px){
@@ -84,11 +111,16 @@ footer p{margin:4px 0}
   </header>
 
   <form class="search" id="sform">
-    <input id="sq" type="search" placeholder="雰囲気で探す（例：夜に聴きたい静かなピアノ）" enterkeyhint="search" aria-label="雰囲気で探す">
+    <input id="sq" type="search" placeholder="雰囲気で探す" enterkeyhint="search" aria-label="雰囲気で探す">
     <button class="primary" type="submit">探す</button>
   </form>
   <div class="sstatus" id="sstatus"></div>
   <div class="chiprow" id="chips"></div>
+
+  <details class="panel proc" id="proc" hidden>
+    <summary>検索の内訳</summary>
+    <div id="procBody"></div>
+  </details>
 
   <details class="panel" id="panel">
     <summary>チューニング</summary>
@@ -137,6 +169,38 @@ footer p{margin:4px 0}
   <ol class="list" id="list"></ol>
   <div class="more"><button class="primary" id="more" hidden>もっと見る</button></div>
 
+  <details class="panel howto" id="howto">
+    <summary>このページのしくみ・推奨環境</summary>
+    <div class="inner">
+      <h3>どこで何をしているか</h3>
+      <table>
+        <tr><th>毎朝 6:37ごろ</th><td>GitHub上の自動処理（GitHub Actions）が、ニコニコ動画のスナップショット検索APIから投稿7日以内の候補を集め、タイトル・タグ・説明文をAIで数値（384個の数の並び）に変換して、このページに置きます。</td></tr>
+        <tr><th>ページを開いたとき</th><td>候補の一覧（約2.5MB）を読み込み、埋もれ度の計算・並び替え・絞り込みを<b>あなたのブラウザの中で</b>行います。</td></tr>
+        <tr><th>雰囲気で探したとき</th><td>AIモデルとそのライブラリを初回だけダウンロードし、検索語の数値化と候補との比較を<b>あなたの端末の中で</b>計算します。<b>検索語はどこにも送信されません。</b></td></tr>
+      </table>
+      <h3>初回の検索で読み込むもの</h3>
+      <ul>
+        <li>AIモデル <code>multilingual-e5-small</code>（8bit量子化版）：Hugging Faceから <span id="dlSize">約120MB（実測値は検索の内訳に表示）</span></li>
+        <li>計算ライブラリ（Transformers.js）：jsDelivrから</li>
+        <li>候補の数値データ：約2MB</li>
+      </ul>
+      <p>2回目以降はブラウザに保存されたものを使うので、すぐに検索できます（ブラウザのデータを消すと再ダウンロードになります）。</p>
+      <h3>推奨環境</h3>
+      <ul>
+        <li><b>パソコンの最新版 Chrome / Edge を推奨</b>。Safari・Firefoxの最新版でも動く見込みです</li>
+        <li>スマホでも動きますが、初回のダウンロードと計算に時間がかかります。Wi-Fiでの利用を推奨します</li>
+        <li>費用はかかりません（サーバー側でAIを動かしていないため）</li>
+      </ul>
+      <h3>「検索の内訳」「なぜこの順位？」の読み方</h3>
+      <ul>
+        <li><b>関連度</b>：検索語と動画（タイトル・タグ・説明文をまとめた文章）の、意味の近さ。−1〜1の値で、大きいほど近い</li>
+        <li><b>埋もれ度</b>：再生数のわりに、いいね・マイリスが平均の何倍ついているか</li>
+        <li><b>合成スコア</b>：関連度と埋もれ度は単位が違うので、それぞれを「平均0・ばらつき1」にそろえてから、設定した割合で足し合わせています</li>
+        <li><b>効いた語句（参考）</b>：タグやタイトルの語句を1つずつ検索語と比べた<b>推定値</b>です。実際の順位は文章全体で計算しているので、一致しないことがあります。説明文は公開していないため含まれません</li>
+      </ul>
+    </div>
+  </details>
+
   <footer>
     <p>本ページは個人が制作・運営する非公式ツールです。ニコニコ公式のサービスではありません。</p>
     <p>データ出典：ニコニコ動画『スナップショット検索API v2』（毎日AM5:00時点のデータ）。数値は取得時点のもので、実際のページと異なる場合があります。</p>
@@ -149,7 +213,10 @@ const DEFAULTS = {sort:"score", vmin:30, vmax:5000, age:7, lmin:3, m:300, w:50, 
 const MODEL = "Xenova/multilingual-e5-small";   // embed.mjs と同じモデル・同じ量子化にすること
 const TRANSFORMERS = "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1";
 const EXAMPLES = ["夜に聴きたい静かなピアノ", "初心者のがんばってる演奏", "癖になる謎の動画", "丁寧な解説", "ほっこりする料理"];
-let query = "", sims = null, EMB = null, extractor = null;
+let query = "", sims = null, EMB = null, extractor = null, QV = null;
+const TIMING = {model:null, dl:0, embed:0, sim:0};
+const TERM_CACHE = new Map();
+let ROWS = [];
 const PAGE = 50;
 let DATA = null, state = {...DEFAULTS}, shown = PAGE, base = {like:0, mylist:0, comment:0};
 
@@ -212,8 +279,12 @@ function render(){
       const sd=Math.sqrt(arr.reduce((a,b)=>a+(b-mu)**2,0)/n)||1; return arr.map(x=>(x-mu)/sd); };
     const zs = z(rows.map(r=>r.sim)), zg = z(rows.map(r=>Math.log(r.score)));
     const a = state.mix/100;
-    rows.forEach((r,i)=>{ r.blend = a*zs[i] + (1-a)*zg[i]; });
+    rows.forEach((r,i)=>{ r.zs = zs[i]; r.zg = zg[i]; r.blend = a*zs[i] + (1-a)*zg[i]; });
+    [...rows].sort((x,y)=>y.sim-x.sim).forEach((r,i)=>{ r.simRank = i+1; });
   }
+  [...rows].sort((x,y)=>y.score-x.score).forEach((r,i)=>{ r.gemRank = i+1; });
+  ROWS = rows;
+  renderProc(rows);
   rows.sort((a,b) => key === "new" ? b.v.posted.localeCompare(a.v.posted) : b[key] - a[key]);
 
   $("summary").textContent = (sims ? `「${query}」で並べ替え：` : "") + `${fmt(rows.length)}件ヒット（全体平均：いいね率 ${pct(base.like)}・マイリス率 ${pct(base.mylist)}）`;
@@ -245,9 +316,76 @@ function render(){
           ${sims ? `<span class="stat hi">関連度 ${r.sim.toFixed(2)}</span>` : ""}
         </div>
         <div class="tags">${v.tags.map(esc).join(" / ")}</div>
+        <details class="why" data-i="${v._i}"><summary>なぜこの順位？</summary>${whyHtml(r, rows.length)}</details>
       </div></li>`;
   }).join("");
   $("more").hidden = rows.length <= shown;
+}
+
+function whyHtml(r, n){
+  const v = r.v, m = state.m, wl = state.w/100;
+  const likeX = r.like/base.like, myX = r.mylist/base.mylist;
+  let h = `<div class="whybox"><dl>`;
+  if (sims){
+    const a = state.mix/100;
+    h += `<dt>関連度</dt><dd>${r.sim.toFixed(3)}（${fmt(n)}本中 ${fmt(r.simRank)}位）</dd>
+      <dt>埋もれ度</dt><dd>平均の${r.score.toFixed(2)}倍（${fmt(n)}本中 ${fmt(r.gemRank)}位）</dd>
+      <dt>合成スコア</dt><dd>${a.toFixed(2)} × ${sgn(r.zs)} ＋ ${(1-a).toFixed(2)} × ${sgn(r.zg)} ＝ <b>${sgn(r.blend)}</b></dd>`;
+  } else {
+    h += `<dt>埋もれ度</dt><dd>平均の${r.score.toFixed(2)}倍（${fmt(n)}本中 ${fmt(r.gemRank)}位）</dd>`;
+  }
+  h += `<dt>いいね側</dt><dd>補正いいね率 ${pct(r.like)} ＝ (${fmt(v.likes)} ＋ ${fmt(m)} × ${pct(base.like)}) ÷ (${fmt(v.views)} ＋ ${fmt(m)}) → 平均の${likeX.toFixed(2)}倍</dd>
+    <dt>マイリス側</dt><dd>補正マイリス率 ${pct(r.mylist)} → 平均の${myX.toFixed(2)}倍</dd>
+    <dt>埋もれ度の式</dt><dd>${wl.toFixed(2)} × ${likeX.toFixed(2)} ＋ ${(1-wl).toFixed(2)} × ${myX.toFixed(2)} ＝ ${r.score.toFixed(2)}</dd></dl>`;
+  if (sims) h += `<p class="note">合成スコアの各項は、絞り込み後の${fmt(n)}本の中で「平均0・ばらつき1」にそろえた値（埋もれ度は対数をとってから）です。</p>
+    <div class="terms" data-terms="${v._i}"><h4>効いた語句（参考・推定）</h4><span class="note">計算中…</span></div>`;
+  return h + `</div>`;
+}
+const sgn = x => (x >= 0 ? "+" : "−") + Math.abs(x).toFixed(2);
+
+function renderProc(rows){
+  const box = $("proc");
+  if (!sims){ box.hidden = true; return; }
+  box.hidden = false;
+  const s = rows.map(r=>r.sim).sort((a,b)=>b-a), n = s.length;
+  const med = n ? s[Math.floor(n/2)] : 0, a = state.mix;
+  const top10 = n ? s[Math.min(9,n-1)] : 0;
+  $("procBody").innerHTML = `<ol>
+    <li>検索語「${esc(query)}」の先頭に <code>query:</code> を付け、AIモデル（multilingual-e5-small）で<b>384個の数の並び</b>に変換：<span class="num">${TIMING.embed.toFixed(0)}ms</span>
+      ${TIMING.model != null ? `（初回のモデル準備 <span class="num">${(TIMING.model/1000).toFixed(1)}秒</span>${TIMING.dl ? `・ダウンロード <span class="num">${(TIMING.dl/1e6).toFixed(0)}MB</span>` : "・ブラウザに保存済みのものを使用"}）` : ""}</li>
+    <li>毎朝あらかじめ変換しておいた候補<b>${fmt(DATA.videos.length)}本</b>の数値と、向きの近さ（関連度）を計算：<span class="num">${TIMING.sim.toFixed(0)}ms</span></li>
+    <li>チューニングの絞り込み条件で <b>${fmt(n)}本</b> に絞る</li>
+    <li>並び順 ＝ 関連度 <b>${a}%</b> ＋ 埋もれ度 <b>${100-a}%</b>（それぞれ平均0・ばらつき1にそろえてから足す）</li>
+    <li>関連度の分布：最大 <span class="num">${n?s[0].toFixed(3):"-"}</span> ／ 10位 <span class="num">${top10.toFixed(3)}</span> ／ 中央値 <span class="num">${med.toFixed(3)}</span> ／ 最小 <span class="num">${n?s[n-1].toFixed(3):"-"}</span></li>
+  </ol>
+  <p class="note">関連度は−1〜1の値ですが、このモデルでは多くの動画が0.8前後に集まります。最大値と中央値の差が小さいほど、「はっきり近い動画が少ない」検索です。計算はすべてこの端末の中で行い、検索語は外部に送信していません。</p>`;
+}
+
+function phrasesOf(v){
+  const parts = [...v.tags];
+  for (const c of v.title.split(/[\s　【】\[\]（）()「」『』／\/|・,、。!！?？~〜:：#＃]+/)) if (c.length >= 2) parts.push(c);
+  return [...new Set(parts)].slice(0, 16);
+}
+async function computeTerms(el){
+  const i = Number(el.dataset.terms), v = DATA.videos[i], key = query + "|" + v.id;
+  try {
+    let res = TERM_CACHE.get(key);
+    if (!res){
+      const ph = phrasesOf(v);
+      if (!ph.length){ el.querySelector(".note").textContent = "語句がありません"; return; }
+      const t = await extractor(ph.map(x => "passage: " + x), {pooling:"mean", normalize:true});
+      const d = t.dims[1];
+      res = ph.map((p, j) => { let s = 0; for (let k = 0; k < d; k++) s += t.data[j*d+k]*QV[k]; return [p, s]; })
+        .sort((a,b)=>b[1]-a[1]);
+      TERM_CACHE.set(key, res);
+    }
+    const top = res.slice(0, 6), lo = Math.min(...res.map(x=>x[1])), hi = Math.max(...res.map(x=>x[1]));
+    el.innerHTML = `<h4>効いた語句（参考・推定）</h4>` + top.map(([p,s]) =>
+      `<div class="term"><span title="${esc(p)}">${esc(p)}</span><span class="bar"><i style="width:${hi>lo?Math.round(15+85*(s-lo)/(hi-lo)):100}%"></i></span><span class="num">${s.toFixed(3)}</span></div>`).join("")
+      + `<p class="note">タグ・タイトルの語句を1つずつ検索語と比べた値です。実際の関連度は説明文を含む文章全体で計算しているため、参考程度に見てください。</p>`;
+  } catch (e){
+    el.querySelector(".note").textContent = "計算できませんでした：" + (e.message || e);
+  }
 }
 
 function onChange(){
@@ -272,16 +410,18 @@ async function loadEmbeddings(){
 }
 async function loadModel(){
   if (extractor) return extractor;
-  const status = $("sstatus");
-  status.textContent = "AIモデルを準備中…（初回のみ数十MBのダウンロードがあります）";
+  const status = $("sstatus"), t0 = performance.now();
+  status.textContent = "AIモデルを準備中…（初回のみダウンロードがあります）";
   const {pipeline, env} = await import(TRANSFORMERS);
   env.allowLocalModels = false;
   const seen = {};
   extractor = await pipeline("feature-extraction", MODEL, {dtype:"q8", progress_callback: p => {
     if (p.status === "progress" && p.total){ seen[p.file] = [p.loaded, p.total];
       const [l,t] = Object.values(seen).reduce((a,[x,y])=>[a[0]+x,a[1]+y],[0,0]);
+      TIMING.dl = t;
       status.textContent = `AIモデルを準備中… ${Math.round(l/1e6)} / ${Math.round(t/1e6)} MB`; }
   }});
+  TIMING.model = performance.now() - t0;
   return extractor;
 }
 async function runSearch(q){
@@ -291,11 +431,14 @@ async function runSearch(q){
   try {
     const [emb, ext] = await Promise.all([loadEmbeddings(), loadModel()]);
     status.textContent = "検索中…";
+    const t1 = performance.now();
     const t = await ext("query: " + query, {pooling:"mean", normalize:true});
+    const t2 = performance.now();
     const qv = t.data, d = emb.meta.dim, n = emb.meta.count, vec = emb.vec, scale = emb.meta.scale;
     const out = new Float32Array(n);
     for (let i = 0; i < n; i++){ let s = 0, o = i*d; for (let k = 0; k < d; k++) s += vec[o+k]*qv[k]; out[i] = s/scale; }
-    sims = out;
+    TIMING.embed = t2 - t1; TIMING.sim = performance.now() - t2;
+    QV = qv; sims = out;
     status.innerHTML = `「${esc(query)}」に近い順で表示中 <button type="button" id="clearq">検索を解除</button>`;
     $("clearq").addEventListener("click", () => { $("sq").value = ""; runSearch(""); });
   } catch (e){
@@ -310,6 +453,12 @@ async function init(){
   for (const k of Object.keys(DEFAULTS)) $(k).addEventListener("input", onChange);
   $("reset").addEventListener("click", () => { state = {...DEFAULTS}; shown = PAGE; syncInputs(); writeHash(); render(); });
   $("more").addEventListener("click", () => { shown += PAGE; render(); });
+  $("list").addEventListener("toggle", e => {
+    const d = e.target;
+    if (!d.open || !d.classList || !d.classList.contains("why") || !sims || !extractor) return;
+    const el = d.querySelector("[data-terms]");
+    if (el) computeTerms(el);
+  }, true);
   try {
     const res = await fetch("data/latest.json", {cache:"no-cache"});
     if (!res.ok) throw new Error(res.status);

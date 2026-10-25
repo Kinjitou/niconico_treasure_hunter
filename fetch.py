@@ -33,6 +33,7 @@ FIELDS = [
 LATEST = ROOT / "docs" / "data" / "latest.json"
 HISTORY_DIR = ROOT / "data" / "history"
 BUILD_DIR = ROOT / "build"
+STATE = ROOT / "data" / "state.json"
 
 
 def log(msg: str) -> None:
@@ -128,9 +129,9 @@ def main() -> int:
     last_modified = version["last_modified"]
     log(f"スナップショット切り替え日時: {last_modified}")
 
-    if LATEST.exists() and not force:
-        prev = json.loads(LATEST.read_text(encoding="utf-8"))
-        if prev.get("meta", {}).get("snapshot") == last_modified:
+    if STATE.exists() and not force:
+        prev = json.loads(STATE.read_text(encoding="utf-8"))
+        if prev.get("snapshot") == last_modified:
             log("前回と同じスナップショットなので何もしない")
             return 0
 
@@ -197,9 +198,18 @@ def main() -> int:
 
     LATEST.parent.mkdir(parents=True, exist_ok=True)
     LATEST.write_text(json.dumps(out, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+    # 履歴は後で推移を分析するための軽量版（数値だけ）。タイトル等は公開データ側にしか置かない
     HISTORY_DIR.mkdir(parents=True, exist_ok=True)
+    slim = {
+        "meta": out["meta"],
+        "columns": ["id", "views", "likes", "mylists", "comments", "posted", "genre"],
+        "rows": [[v["id"], v["views"], v["likes"], v["mylists"], v["comments"], v["posted"], v["genre"]]
+                 for v in videos],
+    }
     with gzip.open(HISTORY_DIR / f"{ref:%Y-%m-%d}.json.gz", "wt", encoding="utf-8") as f:
-        json.dump(out, f, ensure_ascii=False, separators=(",", ":"))
+        json.dump(slim, f, ensure_ascii=False, separators=(",", ":"))
+    STATE.write_text(json.dumps({"snapshot": last_modified, "reference": iso(ref), "count": len(videos)},
+                                ensure_ascii=False), encoding="utf-8")
     BUILD_DIR.mkdir(exist_ok=True)
     (BUILD_DIR / "descriptions.json").write_text(
         json.dumps(descriptions, ensure_ascii=False), encoding="utf-8")

@@ -6,8 +6,10 @@
 
 1. GitHub Actions が毎朝 6:37 JST に `fetch.py` を実行する
 2. `fetch.py` が [スナップショット検索API v2](https://site.nicovideo.jp/search-api-docs/snapshot) から、投稿7日以内の候補を日別に取得する
-3. 結果を `docs/data/latest.json`（公開ページ用）と `data/history/YYYY-MM-DD.json.gz`（履歴）に保存してコミットする
-4. GitHub Pages が `docs/` を公開する。並び順やしきい値はページ上で調整できる
+3. タイトル・タグ・説明文を `embed.mjs`（multilingual-e5-small）で数値化する。説明文はリポジトリに保存しない
+4. 公開データ（`latest.json`・`emb.bin`）は `data` ブランチに**1コミットだけで上書き**保存し、`docs/` と合わせて GitHub Pages へ Actions から直接デプロイする
+5. `main` には軽量な履歴（`data/history/*.json.gz`、数値のみ）と `data/state.json` だけをコミットする（年間 約30MB 増）
+6. 「雰囲気で探す」の検索語の数値化と比較は、閲覧者のブラウザ内で行う（検索語は外部に送信しない）
 
 ## チューニングの場所
 

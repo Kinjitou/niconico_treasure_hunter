@@ -1,5 +1,10 @@
 name: daily-fetch
 
+# 公開データ（latest.json・埋め込み）は main にコミットせず、
+#   - data ブランチに「1コミットだけ」で上書き保存（リポジトリが膨らまない）
+#   - GitHub Pages へは Actions から直接デプロイ
+# main には軽量な履歴（data/history）と前回のスナップショット情報（data/state.json）だけを残す。
+
 on:
   schedule:
     # 毎朝 6:37 JST（21:37 UTC）。スナップショットはAM5:00時点のデータで、切り替えに時間がかかるため余裕を持たせる
@@ -12,28 +17,40 @@ on:
         description: "同じスナップショットでも取り直す"
         type: boolean
         default: false
+  push:
+    branches: [main]
+    paths: ["docs/**", ".github/workflows/daily.yml"]
 
 permissions:
   contents: write
+  pages: write
+  id-token: write
 
 concurrency:
   group: daily-fetch
   cancel-in-progress: false
 
 jobs:
-  fetch:
+  build:
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    outputs:
+      deploy: ${{ steps.decide.outputs.deploy }}
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-python@v5
+        if: github.event_name != 'push'
         with:
           python-version: "3.12"
       - name: Fetch snapshot
+        if: github.event_name != 'push'
         run: python fetch.py ${{ inputs.force && '--force' || '' }}
+
       - name: Check update
         id: updated
         run: echo "yes=$([ -f build/updated ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+
       - uses: actions/setup-node@v4
         if: steps.updated.outputs.yes == 'true'
         with:
@@ -49,14 +66,61 @@ jobs:
         run: |
           npm ci --no-audit --no-fund
           node embed.mjs
-      - name: Commit
+
+      - name: Save data branch (overwrite with a single commit)
+        if: steps.updated.outputs.yes == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tmp=$(mktemp -d)
+          cp docs/data/latest.json docs/data/emb.bin docs/data/emb.json "$tmp"/
+          cd "$tmp"
+          git init -q -b data
+          git add -A
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit -q -m "data: $(cat "$GITHUB_WORKSPACE/build/updated")"
+          git push -f -q "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" data
+
+      - name: Commit history to main
+        if: steps.updated.outputs.yes == 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add docs/data data/history
+          git add data/history data/state.json
           if git diff --cached --quiet; then
             echo "変更なし"
           else
             git commit -m "data: $(date -u -d '+9 hour' +%Y-%m-%d) のスナップショット"
             git push
           fi
+
+      - name: Restore published data from data branch
+        if: steps.updated.outputs.yes != 'true'
+        run: |
+          mkdir -p docs/data
+          git fetch -q --depth=1 origin data
+          git archive FETCH_HEAD | tar -x -C docs/data
+
+      - name: Decide deploy
+        id: decide
+        run: |
+          if [ "${{ steps.updated.outputs.yes }}" = "true" ] || [ "${{ github.event_name }}" != "schedule" ]; then
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "deploy=false" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/upload-pages-artifact@v3
+        if: steps.decide.outputs.deploy == 'true'
+        with:
+          path: docs
+
+  deploy:
+    needs: build
+    if: needs.build.outputs.deploy == 'true'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
