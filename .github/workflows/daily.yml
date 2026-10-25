@@ -1,0 +1,44 @@
+name: daily-fetch
+
+on:
+  schedule:
+    # 毎朝 6:37 JST（21:37 UTC）。スナップショットはAM5:00時点のデータで、切り替えに時間がかかるため余裕を持たせる
+    - cron: "37 21 * * *"
+    # 切り替えが遅れた日のための再試行（同じスナップショットなら何もしない）
+    - cron: "37 23 * * *"
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "同じスナップショットでも取り直す"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: daily-fetch
+  cancel-in-progress: false
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Fetch snapshot
+        run: python fetch.py ${{ inputs.force && '--force' || '' }}
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/data data/history
+          if git diff --cached --quiet; then
+            echo "変更なし"
+          else
+            git commit -m "data: $(date -u -d '+9 hour' +%Y-%m-%d) のスナップショット"
+            git push
+          fi

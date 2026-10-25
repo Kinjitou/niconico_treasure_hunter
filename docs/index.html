@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>埋もれた良作発掘くん</title>
+<meta name="description" content="投稿から7日以内で、再生数のわりに評価の高いニコニコ動画を毎朝ピックアップする非公式ツール">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💎</text></svg>">
+<style>
+:root{
+  --bg:#f6f5f2; --panel:#ffffff; --ink:#1d1c1a; --muted:#6b6862; --line:#e4e1da;
+  --accent:#0f766e; --accent-ink:#ffffff; --chip:#eef6f5; --warn:#b45309;
+  --shadow:0 1px 2px rgba(0,0,0,.05),0 4px 16px rgba(0,0,0,.04);
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --bg:#121212; --panel:#1c1c1c; --ink:#ecebe8; --muted:#a3a09a; --line:#2e2d2b;
+    --accent:#2dd4bf; --accent-ink:#0b1514; --chip:#17302d; --warn:#f59e0b;
+    --shadow:none;
+  }
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font-family:"Hiragino Sans","Noto Sans JP",system-ui,sans-serif;line-height:1.55;font-size:15px}
+a{color:inherit}
+.wrap{max-width:960px;margin:0 auto;padding:20px 16px 48px}
+header h1{font-size:1.5rem;margin:0 0 4px;letter-spacing:.02em}
+header p{margin:0;color:var(--muted);font-size:.9rem}
+.meta{margin-top:10px;font-size:.8rem;color:var(--muted);display:flex;gap:12px;flex-wrap:wrap}
+details.panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;margin:18px 0;box-shadow:var(--shadow)}
+details.panel summary{cursor:pointer;padding:12px 16px;font-weight:600;list-style:none;display:flex;justify-content:space-between;align-items:center}
+details.panel summary::-webkit-details-marker{display:none}
+details.panel summary::after{content:"＋";color:var(--muted)}
+details.panel[open] summary::after{content:"－"}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;padding:4px 16px 16px}
+label{display:flex;flex-direction:column;gap:4px;font-size:.8rem;color:var(--muted)}
+label b{color:var(--ink);font-weight:600}
+input,select{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:7px 9px;width:100%}
+input[type=range]{padding:0;accent-color:var(--accent)}
+.row2{display:flex;gap:8px}
+.hint{grid-column:1/-1;font-size:.78rem;color:var(--muted);margin:0}
+.actions{display:flex;gap:8px;padding:0 16px 16px;flex-wrap:wrap}
+button{font:inherit;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:8px;padding:7px 12px;cursor:pointer}
+button.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.summary{font-size:.85rem;color:var(--muted);margin:6px 2px 12px}
+ol.list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px}
+.card{display:grid;grid-template-columns:auto 160px 1fr;gap:12px;align-items:start;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px;box-shadow:var(--shadow)}
+.rank{font-weight:700;color:var(--muted);min-width:2ch;text-align:right;padding-top:2px;font-variant-numeric:tabular-nums}
+.thumb{position:relative;display:block;aspect-ratio:16/9;border-radius:8px;overflow:hidden;background:var(--line)}
+.thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.thumb .len{position:absolute;right:4px;bottom:4px;background:rgba(0,0,0,.75);color:#fff;font-size:.72rem;padding:1px 5px;border-radius:4px}
+.body{min-width:0}
+.title{font-weight:600;text-decoration:none;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.title:hover{text-decoration:underline}
+.sub{font-size:.78rem;color:var(--muted);margin-top:2px}
+.stats{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.stat{font-size:.78rem;background:var(--chip);border-radius:6px;padding:2px 7px;font-variant-numeric:tabular-nums}
+.stat.hi{background:var(--accent);color:var(--accent-ink);font-weight:600}
+.tags{margin-top:6px;font-size:.74rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.more{display:flex;justify-content:center;margin-top:16px}
+.empty,.error{padding:24px;text-align:center;color:var(--muted);background:var(--panel);border-radius:12px;border:1px dashed var(--line)}
+.error{color:var(--warn)}
+footer{margin-top:36px;font-size:.75rem;color:var(--muted);border-top:1px solid var(--line);padding-top:14px}
+footer p{margin:4px 0}
+@media (max-width:560px){
+  .card{grid-template-columns:110px 1fr}
+  .rank{display:none}
+  .grid{grid-template-columns:1fr 1fr}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>💎 埋もれた良作発掘くん</h1>
+    <p>投稿から7日以内で、再生数のわりにいいね・マイリスが多いニコニコ動画を毎朝ピックアップします。</p>
+    <div class="meta" id="meta">読み込み中…</div>
+  </header>
+
+  <details class="panel" id="panel">
+    <summary>チューニング</summary>
+    <div class="grid">
+      <label><b>並び順</b>
+        <select id="sort">
+          <option value="score">総合スコア（いいね率×マイリス率）</option>
+          <option value="like">いいね率</option>
+          <option value="mylist">マイリス率</option>
+          <option value="comment">コメント率</option>
+          <option value="new">新しい順</option>
+        </select>
+      </label>
+      <label><b>再生数レンジ</b>
+        <div class="row2"><input id="vmin" type="number" min="0" step="10" aria-label="最小再生数"><input id="vmax" type="number" min="0" step="100" aria-label="最大再生数"></div>
+      </label>
+      <label><b>投稿からの日数：<span id="ageOut"></span>日以内</b>
+        <input id="age" type="range" min="1" max="7" step="1">
+      </label>
+      <label><b>いいね数の下限</b>
+        <input id="lmin" type="number" min="0" step="1">
+      </label>
+      <label><b>補正の強さ：<span id="mOut"></span>再生</b>
+        <input id="m" type="range" min="0" max="2000" step="50">
+      </label>
+      <label><b>総合スコアの重み（いいね：マイリス）</b>
+        <input id="w" type="range" min="0" max="100" step="5">
+      </label>
+      <label><b>ジャンル</b>
+        <select id="genre"><option value="">すべて</option></select>
+      </label>
+      <label><b>タイトル・タグで絞り込み</b>
+        <input id="kw" type="search" placeholder="例：演奏してみた -MMD">
+      </label>
+      <p class="hint">「補正の強さ」は、再生数が少ない動画の率を全体平均に引き寄せる量です。0にすると生の率になり、少数再生の偶然の高評価が上位に来やすくなります。設定はURLに保存されるので、そのまま共有できます。</p>
+    </div>
+    <div class="actions">
+      <button id="reset">初期値に戻す</button>
+    </div>
+  </details>
+
+  <div class="summary" id="summary"></div>
+  <ol class="list" id="list"></ol>
+  <div class="more"><button class="primary" id="more" hidden>もっと見る</button></div>
+
+  <footer>
+    <p>本ページは個人が制作・運営する非公式ツールです。ニコニコ公式のサービスではありません。</p>
+    <p>データ出典：ニコニコ動画『スナップショット検索API v2』（毎日AM5:00時点のデータ）。数値は取得時点のもので、実際のページと異なる場合があります。</p>
+    <p id="pool"></p>
+  </footer>
+</div>
+
+<script>
+const DEFAULTS = {sort:"score", vmin:30, vmax:5000, age:7, lmin:3, m:300, w:50, genre:"", kw:""};
+const PAGE = 50;
+let DATA = null, state = {...DEFAULTS}, shown = PAGE, base = {like:0, mylist:0, comment:0};
+
+const $ = id => document.getElementById(id);
+const fmt = n => n.toLocaleString("ja-JP");
+const pct = x => (x*100).toFixed(x < 0.01 ? 2 : 1) + "%";
+const esc = s => s.replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const dur = s => `${Math.floor(s/60)}:${String(s%60).padStart(2,"0")}`;
+
+function readHash(){
+  const p = new URLSearchParams(location.hash.slice(1));
+  for (const k of Object.keys(DEFAULTS)){
+    if (!p.has(k)) continue;
+    state[k] = typeof DEFAULTS[k] === "number" ? Number(p.get(k)) : p.get(k);
+  }
+}
+function writeHash(){
+  const p = new URLSearchParams();
+  for (const [k,v] of Object.entries(state)) if (v !== DEFAULTS[k]) p.set(k, v);
+  const h = p.toString();
+  history.replaceState(null, "", h ? "#" + h : location.pathname + location.search);
+}
+function syncInputs(){
+  for (const k of Object.keys(DEFAULTS)) $(k).value = state[k];
+  $("ageOut").textContent = state.age;
+  $("mOut").textContent = fmt(state.m);
+}
+
+function matchKw(v, kw){
+  if (!kw.trim()) return true;
+  const hay = (v.title + " " + v.tags.join(" ")).toLowerCase();
+  return kw.toLowerCase().split(/\s+/).filter(Boolean).every(t =>
+    t.startsWith("-") && t.length > 1 ? !hay.includes(t.slice(1)) : hay.includes(t));
+}
+
+function render(){
+  if (!DATA) return;
+  const ref = new Date(DATA.meta.reference).getTime();
+  const m = state.m, wl = state.w / 100, wm = 1 - wl;
+  const rows = [];
+  for (const v of DATA.videos){
+    if (v.views < state.vmin || v.views > state.vmax) continue;
+    if (v.likes < state.lmin) continue;
+    if (state.genre && v.genre !== state.genre) continue;
+    if ((ref - new Date(v.posted).getTime()) / 864e5 > state.age) continue;
+    if (!matchKw(v, state.kw)) continue;
+    const like = (v.likes + m*base.like) / (v.views + m);
+    const mylist = (v.mylists + m*base.mylist) / (v.views + m);
+    const comment = (v.comments + m*base.comment) / (v.views + m);
+    const score = wl*(like/base.like) + wm*(mylist/base.mylist);
+    rows.push({v, like, mylist, comment, score});
+  }
+  const key = state.sort;
+  rows.sort((a,b) => key === "new" ? b.v.posted.localeCompare(a.v.posted) : b[key] - a[key]);
+
+  $("summary").textContent = `${fmt(rows.length)}件ヒット（全体平均：いいね率 ${pct(base.like)}・マイリス率 ${pct(base.mylist)}）`;
+  const list = $("list");
+  if (!rows.length){
+    list.innerHTML = `<li class="empty">条件に合う動画がありません。チューニングで条件をゆるめてください。</li>`;
+    $("more").hidden = true;
+    return;
+  }
+  list.innerHTML = rows.slice(0, shown).map((r, i) => {
+    const v = r.v, url = `https://nico.ms/${v.id}`;
+    const ageH = Math.max(0, Math.round((ref - new Date(v.posted).getTime()) / 36e5));
+    const age = ageH < 24 ? `${ageH}時間前` : `${Math.floor(ageH/24)}日前`;
+    const hi = k => key === k ? " hi" : "";
+    return `<li class="card">
+      <div class="rank">${i+1}</div>
+      <a class="thumb" href="${url}" target="_blank" rel="noopener">
+        ${v.thumb ? `<img src="${esc(v.thumb)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : ""}
+        <span class="len">${dur(v.length)}</span></a>
+      <div class="body">
+        <a class="title" href="${url}" target="_blank" rel="noopener">${esc(v.title)}</a>
+        <div class="sub">${esc(v.genre || "ジャンルなし")}・${age}投稿</div>
+        <div class="stats">
+          <span class="stat">▶ ${fmt(v.views)}</span>
+          <span class="stat${hi("like")}">いいね ${fmt(v.likes)}（${pct(v.likes/Math.max(v.views,1))}）</span>
+          <span class="stat${hi("mylist")}">マイリス ${fmt(v.mylists)}（${pct(v.mylists/Math.max(v.views,1))}）</span>
+          <span class="stat${hi("comment")}">コメ ${fmt(v.comments)}</span>
+          <span class="stat${hi("score")}">平均の${r.score.toFixed(1)}倍</span>
+        </div>
+        <div class="tags">${v.tags.map(esc).join(" / ")}</div>
+      </div></li>`;
+  }).join("");
+  $("more").hidden = rows.length <= shown;
+}
+
+function onChange(){
+  for (const k of Object.keys(DEFAULTS)){
+    const raw = $(k).value;
+    state[k] = typeof DEFAULTS[k] === "number" ? Number(raw) : raw;
+  }
+  shown = PAGE;
+  syncInputs(); writeHash(); render();
+}
+
+async function init(){
+  readHash(); syncInputs();
+  for (const k of Object.keys(DEFAULTS)) $(k).addEventListener("input", onChange);
+  $("reset").addEventListener("click", () => { state = {...DEFAULTS}; shown = PAGE; syncInputs(); writeHash(); render(); });
+  $("more").addEventListener("click", () => { shown += PAGE; render(); });
+  try {
+    const res = await fetch("data/latest.json", {cache:"no-cache"});
+    if (!res.ok) throw new Error(res.status);
+    DATA = await res.json();
+  } catch (e){
+    $("meta").textContent = "";
+    $("list").innerHTML = `<li class="error">データを読み込めませんでした（${esc(String(e.message||e))}）。初回の取得がまだの可能性があります。</li>`;
+    return;
+  }
+  let sv=0, sl=0, sm=0, sc=0;
+  for (const v of DATA.videos){ sv+=v.views; sl+=v.likes; sm+=v.mylists; sc+=v.comments; }
+  base = {like: sl/sv || 0.01, mylist: sm/sv || 0.005, comment: sc/sv || 0.01};
+  const genres = [...new Set(DATA.videos.map(v => v.genre).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"ja"));
+  $("genre").insertAdjacentHTML("beforeend", genres.map(g => `<option>${esc(g)}</option>`).join(""));
+  $("genre").value = state.genre;
+  const snap = new Date(DATA.meta.reference);
+  $("meta").innerHTML = `<span>データ時点：${snap.toLocaleDateString("ja-JP",{month:"long",day:"numeric",weekday:"short"})} 5:00</span><span>候補 ${fmt(DATA.meta.count)}本</span>`;
+  const p = DATA.meta.pool;
+  $("pool").textContent = `候補の条件：投稿${p.window_days}日以内・${p.content_type || "全種別"}・再生数${fmt(p.min_views)}〜${fmt(p.max_views)}・いいね${p.min_likes}以上（各日いいね数上位${p.per_day_max}件まで）`;
+  render();
+}
+init();
+</script>
+</body>
+</html>
