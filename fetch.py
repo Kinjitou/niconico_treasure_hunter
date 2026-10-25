@@ -1,16 +1,19 @@
 """埋もれた良作発掘くん — Snapshot API から候補プールを取得して JSON に保存する。
 
 標準ライブラリのみで動く。GitHub Actions から毎朝実行する想定。
-規約上の配慮：投稿者ID・チャンネルID・説明文・最新コメントは取得も保存もしない。
+規約上の配慮：投稿者ID・チャンネルID・最新コメントは取得も保存もしない。
+説明文は「雰囲気で探す」用の埋め込み計算にだけ使い、リポジトリには保存しない（build/ は .gitignore 対象）。
 """
 
 from __future__ import annotations
 
 import datetime as dt
 import gzip
+import html
 import json
 import os
 import pathlib
+import re
 import sys
 import time
 import tomllib
@@ -25,10 +28,11 @@ JST = dt.timezone(dt.timedelta(hours=9))
 FIELDS = [
     "contentId", "title", "thumbnailUrl", "viewCounter", "likeCounter",
     "mylistCounter", "commentCounter", "lengthSeconds", "startTime",
-    "genre", "tags", "contentType",
+    "genre", "tags", "contentType", "description",
 ]
 LATEST = ROOT / "docs" / "data" / "latest.json"
 HISTORY_DIR = ROOT / "data" / "history"
+BUILD_DIR = ROOT / "build"
 
 
 def log(msg: str) -> None:
@@ -83,6 +87,16 @@ class Client:
 
 def iso(t: dt.datetime) -> str:
     return t.strftime("%Y-%m-%dT%H:%M:%S+09:00")
+
+
+def clean_description(raw: str | None, limit: int = 400) -> str:
+    text = re.sub(r"<br\s*/?>", " ", raw or "", flags=re.I)
+    text = re.sub(r"<[^>]+>", " ", text)
+    text = html.unescape(text)
+    text = re.sub(r"https?://\S+", " ", text)
+    text = re.sub(r"\b(?:sm|so|nm|mylist/|user/)\d+\b", " ", text)
+    text = re.sub(r"\s+", " ", text).strip()
+    return text[:limit]
 
 
 def compact(v: dict) -> dict:
@@ -141,6 +155,7 @@ def main() -> int:
         base.append(("filters[contentType][0]", pool["content_type"]))
 
     items: dict[str, dict] = {}
+    descriptions: dict[str, str] = {}
     slices = []
     for i in range(days):
         s = start + dt.timedelta(days=i)
@@ -158,6 +173,7 @@ def main() -> int:
             data = body["data"]
             for v in data:
                 items[v["contentId"]] = compact(v)
+                descriptions[v["contentId"]] = clean_description(v.get("description"))
             fetched += len(data)
             if len(data) < 100:
                 break
@@ -184,6 +200,10 @@ def main() -> int:
     HISTORY_DIR.mkdir(parents=True, exist_ok=True)
     with gzip.open(HISTORY_DIR / f"{ref:%Y-%m-%d}.json.gz", "wt", encoding="utf-8") as f:
         json.dump(out, f, ensure_ascii=False, separators=(",", ":"))
+    BUILD_DIR.mkdir(exist_ok=True)
+    (BUILD_DIR / "descriptions.json").write_text(
+        json.dumps(descriptions, ensure_ascii=False), encoding="utf-8")
+    (BUILD_DIR / "updated").write_text(last_modified, encoding="utf-8")
     log(f"保存: {len(videos)}件（APIリクエスト {client.requests}回）")
     return 0
 

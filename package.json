@@ -1,0 +1,11 @@
+{
+  "name": "niconico-treasure-hunter",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "embed": "node embed.mjs"
+  },
+  "dependencies": {
+    "@huggingface/transformers": "3.8.1"
+  }
+}

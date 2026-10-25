@@ -23,7 +23,7 @@ concurrency:
 jobs:
   fetch:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -31,6 +31,24 @@ jobs:
           python-version: "3.12"
       - name: Fetch snapshot
         run: python fetch.py ${{ inputs.force && '--force' || '' }}
+      - name: Check update
+        id: updated
+        run: echo "yes=$([ -f build/updated ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+      - uses: actions/setup-node@v4
+        if: steps.updated.outputs.yes == 'true'
+        with:
+          node-version: "22"
+          cache: npm
+      - uses: actions/cache@v4
+        if: steps.updated.outputs.yes == 'true'
+        with:
+          path: .hf-cache
+          key: hf-multilingual-e5-small-q8
+      - name: Build embeddings
+        if: steps.updated.outputs.yes == 'true'
+        run: |
+          npm ci --no-audit --no-fund
+          node embed.mjs
       - name: Commit
         run: |
           git config user.name "github-actions[bot]"
