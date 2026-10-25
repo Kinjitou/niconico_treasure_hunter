@@ -180,8 +180,8 @@ footer p{margin:4px 0}
       </table>
       <h3>初回の検索で読み込むもの</h3>
       <ul>
-        <li>AIモデル <code>multilingual-e5-small</code>（8bit量子化版）：Hugging Faceから <span id="dlSize">約120MB（実測値は検索の内訳に表示）</span></li>
-        <li>計算ライブラリ（Transformers.js）：jsDelivrから</li>
+        <li>AIモデル <code>multilingual-e5-small</code>（8bit量子化版）：Hugging Faceから 約135MB</li>
+        <li>計算ライブラリ（Transformers.js）：jsDelivrから約4MB</li>
         <li>候補の数値データ：約2MB</li>
       </ul>
       <p>2回目以降はブラウザに保存されたものを使うので、すぐに検索できます（ブラウザのデータを消すと再ダウンロードになります）。</p>
@@ -352,7 +352,7 @@ function renderProc(rows){
   const top10 = n ? s[Math.min(9,n-1)] : 0;
   $("procBody").innerHTML = `<ol>
     <li>検索語「${esc(query)}」の先頭に <code>query:</code> を付け、AIモデル（multilingual-e5-small）で<b>384個の数の並び</b>に変換：<span class="num">${TIMING.embed.toFixed(0)}ms</span>
-      ${TIMING.model != null ? `（初回のモデル準備 <span class="num">${(TIMING.model/1000).toFixed(1)}秒</span>${TIMING.dl ? `・ダウンロード <span class="num">${(TIMING.dl/1e6).toFixed(0)}MB</span>` : "・ブラウザに保存済みのものを使用"}）` : ""}</li>
+      ${TIMING.model != null ? `（初回のモデル準備 <span class="num">${(TIMING.model/1000).toFixed(1)}秒</span>${TIMING.dl ? `・モデル <span class="num">${(TIMING.dl/1e6).toFixed(0)}MB</span>（2回目以降はブラウザに保存済みのものを使用）` : ""}）` : ""}</li>
     <li>毎朝あらかじめ変換しておいた候補<b>${fmt(DATA.videos.length)}本</b>の数値と、向きの近さ（関連度）を計算：<span class="num">${TIMING.sim.toFixed(0)}ms</span></li>
     <li>チューニングの絞り込み条件で <b>${fmt(n)}本</b> に絞る</li>
     <li>並び順 ＝ 関連度 <b>${a}%</b> ＋ 埋もれ度 <b>${100-a}%</b>（それぞれ平均0・ばらつき1にそろえてから足す）</li>
