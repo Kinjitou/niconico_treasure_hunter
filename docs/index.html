@@ -42,6 +42,12 @@ input[type=range]{padding:0;accent-color:var(--accent)}
 .actions{display:flex;gap:8px;padding:0 16px 16px;flex-wrap:wrap}
 button{font:inherit;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:8px;padding:7px 12px;cursor:pointer}
 button.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.search{display:flex;gap:8px;margin:18px 0 6px}
+.search input{flex:1;font-size:1rem;padding:10px 12px;background:var(--panel)}
+.search button{white-space:nowrap}
+.sstatus{font-size:.8rem;color:var(--muted);min-height:1.2em;margin:0 2px}
+.chiprow{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 0}
+.chiprow button{font-size:.78rem;padding:3px 9px;border-radius:999px;background:var(--chip);border-color:transparent}
 .summary{font-size:.85rem;color:var(--muted);margin:6px 2px 12px}
 ol.list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px}
 .card{display:grid;grid-template-columns:auto 160px 1fr;gap:12px;align-items:start;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px;box-shadow:var(--shadow)}
@@ -77,6 +83,13 @@ footer p{margin:4px 0}
     <div class="meta" id="meta">読み込み中…</div>
   </header>
 
+  <form class="search" id="sform">
+    <input id="sq" type="search" placeholder="雰囲気で探す（例：夜に聴きたい静かなピアノ）" enterkeyhint="search" aria-label="雰囲気で探す">
+    <button class="primary" type="submit">探す</button>
+  </form>
+  <div class="sstatus" id="sstatus"></div>
+  <div class="chiprow" id="chips"></div>
+
   <details class="panel" id="panel">
     <summary>チューニング</summary>
     <div class="grid">
@@ -104,13 +117,16 @@ footer p{margin:4px 0}
       <label><b>総合スコアの重み（いいね：マイリス）</b>
         <input id="w" type="range" min="0" max="100" step="5">
       </label>
+      <label><b>検索時のバランス：関連度 <span id="mixOut"></span></b>
+        <input id="mix" type="range" min="0" max="100" step="5">
+      </label>
       <label><b>ジャンル</b>
         <select id="genre"><option value="">すべて</option></select>
       </label>
       <label><b>タイトル・タグで絞り込み</b>
         <input id="kw" type="search" placeholder="例：演奏してみた -MMD">
       </label>
-      <p class="hint">「補正の強さ」は、再生数が少ない動画の率を全体平均に引き寄せる量です。0にすると生の率になり、少数再生の偶然の高評価が上位に来やすくなります。設定はURLに保存されるので、そのまま共有できます。</p>
+      <p class="hint">「補正の強さ」は、再生数が少ない動画の率を全体平均に引き寄せる量です。0にすると生の率になり、少数再生の偶然の高評価が上位に来やすくなります。「検索時のバランス」は、雰囲気で探したときの並び順で、関連度と埋もれ度（総合スコア）をどの割合で混ぜるかです。100%にすると関連度だけで並びます。設定と検索語はURLに保存されるので、そのまま共有できます。</p>
     </div>
     <div class="actions">
       <button id="reset">初期値に戻す</button>
@@ -129,7 +145,11 @@ footer p{margin:4px 0}
 </div>
 
 <script>
-const DEFAULTS = {sort:"score", vmin:30, vmax:5000, age:7, lmin:3, m:300, w:50, genre:"", kw:""};
+const DEFAULTS = {sort:"score", vmin:30, vmax:5000, age:7, lmin:3, m:300, w:50, mix:70, genre:"", kw:""};
+const MODEL = "Xenova/multilingual-e5-small";   // embed.mjs と同じモデル・同じ量子化にすること
+const TRANSFORMERS = "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1";
+const EXAMPLES = ["夜に聴きたい静かなピアノ", "初心者のがんばってる演奏", "癖になる謎の動画", "丁寧な解説", "ほっこりする料理"];
+let query = "", sims = null, EMB = null, extractor = null;
 const PAGE = 50;
 let DATA = null, state = {...DEFAULTS}, shown = PAGE, base = {like:0, mylist:0, comment:0};
 
@@ -141,6 +161,7 @@ const dur = s => `${Math.floor(s/60)}:${String(s%60).padStart(2,"0")}`;
 
 function readHash(){
   const p = new URLSearchParams(location.hash.slice(1));
+  query = p.get("q") || "";
   for (const k of Object.keys(DEFAULTS)){
     if (!p.has(k)) continue;
     state[k] = typeof DEFAULTS[k] === "number" ? Number(p.get(k)) : p.get(k);
@@ -148,6 +169,7 @@ function readHash(){
 }
 function writeHash(){
   const p = new URLSearchParams();
+  if (query) p.set("q", query);
   for (const [k,v] of Object.entries(state)) if (v !== DEFAULTS[k]) p.set(k, v);
   const h = p.toString();
   history.replaceState(null, "", h ? "#" + h : location.pathname + location.search);
@@ -156,6 +178,8 @@ function syncInputs(){
   for (const k of Object.keys(DEFAULTS)) $(k).value = state[k];
   $("ageOut").textContent = state.age;
   $("mOut").textContent = fmt(state.m);
+  $("mixOut").textContent = state.mix + "%";
+  $("sq").value = query;
 }
 
 function matchKw(v, kw){
@@ -180,12 +204,19 @@ function render(){
     const mylist = (v.mylists + m*base.mylist) / (v.views + m);
     const comment = (v.comments + m*base.comment) / (v.views + m);
     const score = wl*(like/base.like) + wm*(mylist/base.mylist);
-    rows.push({v, like, mylist, comment, score});
+    rows.push({v, like, mylist, comment, score, sim: sims ? sims[v._i] : 0});
   }
-  const key = state.sort;
+  const key = sims ? "blend" : state.sort;
+  if (sims && rows.length){
+    const z = (arr) => { const n=arr.length, mu=arr.reduce((a,b)=>a+b,0)/n;
+      const sd=Math.sqrt(arr.reduce((a,b)=>a+(b-mu)**2,0)/n)||1; return arr.map(x=>(x-mu)/sd); };
+    const zs = z(rows.map(r=>r.sim)), zg = z(rows.map(r=>Math.log(r.score)));
+    const a = state.mix/100;
+    rows.forEach((r,i)=>{ r.blend = a*zs[i] + (1-a)*zg[i]; });
+  }
   rows.sort((a,b) => key === "new" ? b.v.posted.localeCompare(a.v.posted) : b[key] - a[key]);
 
-  $("summary").textContent = `${fmt(rows.length)}件ヒット（全体平均：いいね率 ${pct(base.like)}・マイリス率 ${pct(base.mylist)}）`;
+  $("summary").textContent = (sims ? `「${query}」で並べ替え：` : "") + `${fmt(rows.length)}件ヒット（全体平均：いいね率 ${pct(base.like)}・マイリス率 ${pct(base.mylist)}）`;
   const list = $("list");
   if (!rows.length){
     list.innerHTML = `<li class="empty">条件に合う動画がありません。チューニングで条件をゆるめてください。</li>`;
@@ -211,6 +242,7 @@ function render(){
           <span class="stat${hi("mylist")}">マイリス ${fmt(v.mylists)}（${pct(v.mylists/Math.max(v.views,1))}）</span>
           <span class="stat${hi("comment")}">コメ ${fmt(v.comments)}</span>
           <span class="stat${hi("score")}">平均の${r.score.toFixed(1)}倍</span>
+          ${sims ? `<span class="stat hi">関連度 ${r.sim.toFixed(2)}</span>` : ""}
         </div>
         <div class="tags">${v.tags.map(esc).join(" / ")}</div>
       </div></li>`;
@@ -227,6 +259,52 @@ function onChange(){
   syncInputs(); writeHash(); render();
 }
 
+async function loadEmbeddings(){
+  if (EMB) return EMB;
+  const [meta, buf] = await Promise.all([
+    fetch("data/emb.json", {cache:"no-cache"}).then(r => { if (!r.ok) throw new Error("emb.json " + r.status); return r.json(); }),
+    fetch("data/emb.bin", {cache:"no-cache"}).then(r => { if (!r.ok) throw new Error("emb.bin " + r.status); return r.arrayBuffer(); }),
+  ]);
+  if (meta.snapshot !== DATA.meta.snapshot || meta.count !== DATA.videos.length)
+    throw new Error("検索用データが今日の候補と一致しません（生成待ちの可能性があります）");
+  EMB = {meta, vec: new Int8Array(buf)};
+  return EMB;
+}
+async function loadModel(){
+  if (extractor) return extractor;
+  const status = $("sstatus");
+  status.textContent = "AIモデルを準備中…（初回のみ数十MBのダウンロードがあります）";
+  const {pipeline, env} = await import(TRANSFORMERS);
+  env.allowLocalModels = false;
+  const seen = {};
+  extractor = await pipeline("feature-extraction", MODEL, {dtype:"q8", progress_callback: p => {
+    if (p.status === "progress" && p.total){ seen[p.file] = [p.loaded, p.total];
+      const [l,t] = Object.values(seen).reduce((a,[x,y])=>[a[0]+x,a[1]+y],[0,0]);
+      status.textContent = `AIモデルを準備中… ${Math.round(l/1e6)} / ${Math.round(t/1e6)} MB`; }
+  }});
+  return extractor;
+}
+async function runSearch(q){
+  query = q.trim(); shown = PAGE;
+  if (!query){ sims = null; $("sstatus").textContent = ""; writeHash(); render(); return; }
+  const status = $("sstatus");
+  try {
+    const [emb, ext] = await Promise.all([loadEmbeddings(), loadModel()]);
+    status.textContent = "検索中…";
+    const t = await ext("query: " + query, {pooling:"mean", normalize:true});
+    const qv = t.data, d = emb.meta.dim, n = emb.meta.count, vec = emb.vec, scale = emb.meta.scale;
+    const out = new Float32Array(n);
+    for (let i = 0; i < n; i++){ let s = 0, o = i*d; for (let k = 0; k < d; k++) s += vec[o+k]*qv[k]; out[i] = s/scale; }
+    sims = out;
+    status.innerHTML = `「${esc(query)}」に近い順で表示中 <button type="button" id="clearq">検索を解除</button>`;
+    $("clearq").addEventListener("click", () => { $("sq").value = ""; runSearch(""); });
+  } catch (e){
+    sims = null;
+    status.textContent = "雰囲気検索を使えませんでした：" + (e.message || e);
+  }
+  writeHash(); render();
+}
+
 async function init(){
   readHash(); syncInputs();
   for (const k of Object.keys(DEFAULTS)) $(k).addEventListener("input", onChange);
@@ -241,6 +319,7 @@ async function init(){
     $("list").innerHTML = `<li class="error">データを読み込めませんでした（${esc(String(e.message||e))}）。初回の取得がまだの可能性があります。</li>`;
     return;
   }
+  DATA.videos.forEach((v,i) => { v._i = i; });
   let sv=0, sl=0, sm=0, sc=0;
   for (const v of DATA.videos){ sv+=v.views; sl+=v.likes; sm+=v.mylists; sc+=v.comments; }
   base = {like: sl/sv || 0.01, mylist: sm/sv || 0.005, comment: sc/sv || 0.01};
@@ -251,7 +330,11 @@ async function init(){
   $("meta").innerHTML = `<span>データ時点：${snap.toLocaleDateString("ja-JP",{month:"long",day:"numeric",weekday:"short"})} 5:00</span><span>候補 ${fmt(DATA.meta.count)}本</span>`;
   const p = DATA.meta.pool;
   $("pool").textContent = `候補の条件：投稿${p.window_days}日以内・${p.content_type || "全種別"}・再生数${fmt(p.min_views)}〜${fmt(p.max_views)}・いいね${p.min_likes}以上（各日いいね数上位${p.per_day_max}件まで）`;
+  $("sform").addEventListener("submit", e => { e.preventDefault(); $("sq").blur(); runSearch($("sq").value); });
+  $("chips").innerHTML = EXAMPLES.map(x => `<button type="button">${esc(x)}</button>`).join("");
+  $("chips").querySelectorAll("button").forEach(b => b.addEventListener("click", () => { $("sq").value = b.textContent; runSearch(b.textContent); }));
   render();
+  if (query) runSearch(query);
 }
 init();
 </script>
