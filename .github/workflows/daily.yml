@@ -63,6 +63,9 @@ jobs:
           key: hf-multilingual-e5-small-q8
       - name: Build embeddings
         if: steps.updated.outputs.yes == 'true'
+        env:
+          # GPU版の追加ファイルは不要（CPUで計算する）。配布元の404で npm ci が落ちるのを防ぐ
+          ONNXRUNTIME_NODE_INSTALL_CUDA: skip
         run: |
           npm ci --no-audit --no-fund
           node embed.mjs
